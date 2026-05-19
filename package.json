@@ -1,19 +1,9 @@
 {
-  "name": "codex-autopilot",
-  "version": "0.1.0",
-  "description": "Autopilot for Codex",
+  "name": "arar",
+  "version": "0.0.0",
   "type": "module",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/amphoreus-ai/codex-autopilot.git"
-  },
-  "bugs": {
-    "url": "https://github.com/amphoreus-ai/codex-autopilot/issues"
-  },
-  "homepage": "https://github.com/amphoreus-ai/codex-autopilot#readme",
   "bin": {
-    "codex-autopilot": "bin/install.js"
+    "arar": "bin/install.js"
   },
   "dependencies": {
     "confbox": "^0.2.4"
