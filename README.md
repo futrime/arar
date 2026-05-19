@@ -1,8 +1,6 @@
-# arar
+# Auto-Research with Agent Review
 
-Auto-Research with Agent Review
-
-When coding agents are saying "done", it may not be really done. They may be trying to finish prematurely to avoid doing more work, or they may have made a mistake and need to fix it. **arar** adds a reviewer agent that checks the work and gives feedback, allowing the coding agent to iterate until it is truly done.
+When coding agents are saying "done", it may not be really done. They may be trying to finish prematurely to avoid doing more work, or they may have made a mistake and need to fix it. **Auto-Research with Agent Review (arar)** adds a reviewer agent that checks the work and gives feedback, allowing the coding agent to iterate until it is truly done.
 
 ## Install
 
