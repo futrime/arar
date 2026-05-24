@@ -7,37 +7,47 @@ import { fileURLToPath } from "node:url";
 const pkgRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const cwd = process.cwd();
 
-function installFlavor({ srcDir, dstDir, hooksFile }) {
+const MUST_MODE = process.argv.includes("--must");
+
+function buildStopHook(command) {
+    const fullCommand = MUST_MODE ? `${command} --must` : command;
+    return {
+        hooks: [
+            {
+                type: "command",
+                command: fullCommand,
+            },
+        ],
+    };
+}
+
+function installFlavor({ srcDir, dstDir, settingsFile, hookCommand }) {
     cpSync(join(srcDir, "hooks", "arar"), join(dstDir, "hooks", "arar"), { recursive: true });
 
-    const hooksPath = join(dstDir, hooksFile);
-    const srcHooks = JSON.parse(readFileSync(join(srcDir, hooksFile), "utf8")).hooks ?? {};
-    const target = existsSync(hooksPath) ? JSON.parse(readFileSync(hooksPath, "utf8")) : {};
+    const settingsPath = join(dstDir, settingsFile);
+    const target = existsSync(settingsPath) ? JSON.parse(readFileSync(settingsPath, "utf8")) : {};
     target.hooks ??= {};
 
-    for (const [event, entries] of Object.entries(srcHooks)) {
-        const list = (target.hooks[event] ??= []);
-        const seen = new Set(list.map((e) => JSON.stringify(e)));
-        for (const entry of entries) {
-            const key = JSON.stringify(entry);
-            if (!seen.has(key)) {
-                seen.add(key);
-                list.push(entry);
-            }
-        }
+    const entry = buildStopHook(hookCommand);
+    const list = (target.hooks.Stop ??= []);
+    const key = JSON.stringify(entry);
+    if (!list.some((existing) => JSON.stringify(existing) === key)) {
+        list.push(entry);
     }
 
-    writeFileSync(hooksPath, `${JSON.stringify(target, null, 2)}\n`);
+    writeFileSync(settingsPath, `${JSON.stringify(target, null, 2)}\n`);
 }
 
 installFlavor({
     srcDir: join(pkgRoot, "codex"),
     dstDir: join(cwd, ".codex"),
-    hooksFile: "hooks.json",
+    settingsFile: "hooks.json",
+    hookCommand: "node .codex/hooks/arar/main.js",
 });
 
 installFlavor({
     srcDir: join(pkgRoot, "claude"),
     dstDir: join(cwd, ".claude"),
-    hooksFile: "settings.json",
+    settingsFile: "settings.json",
+    hookCommand: "node .claude/hooks/arar/main.js",
 });

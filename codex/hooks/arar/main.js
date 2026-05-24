@@ -1,13 +1,29 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const SCHEMA_PATH = join(HERE, "judge-schema.json");
+const MUST_MODE = process.argv.includes("--must");
+
+const JUDGE_SCHEMA = {
+    type: "object",
+    properties: {
+        verdict: {
+            type: "string",
+            enum: ["complete", "incomplete", "failed", "suspended", "waiting"],
+            description: "The current state of the task.",
+        },
+        reason: {
+            type: "string",
+            description:
+                "A brief explanation of why this verdict was chosen, citing specific evidence from the conversation.",
+        },
+    },
+    required: ["verdict", "reason"],
+    additionalProperties: false,
+};
 
 const AUDIT_PROMPT = `You are a strict task-completion auditor. You will receive the latest assistant message and all user messages from a conversation between a user and a coding agent. You are running in the agent's working directory and may use shell tools (\`cat\`, \`ls\`, \`git status\`, \`git diff\`, etc.) to read files and verify the agent's claims against the actual state of the repository.
 
@@ -80,7 +96,7 @@ function extractUserMessagesFromTranscript(path) {
     return messages.map((text, index) => `User message ${index + 1}:\n${text}`).join("\n\n");
 }
 
-function runCodex({ input, resultFile }) {
+function runCodex({ input, schemaFile, resultFile }) {
     return new Promise((resolve, reject) => {
         const child = spawn(
             "codex",
@@ -92,7 +108,7 @@ function runCodex({ input, resultFile }) {
                 "--disable",
                 "hooks",
                 "--output-schema",
-                SCHEMA_PATH,
+                schemaFile,
                 "-o",
                 resultFile,
             ],
@@ -137,7 +153,9 @@ async function main() {
     }
 
     const tmpDir = mkdtempSync(join(tmpdir(), "arar-"));
+    const schemaFile = join(tmpDir, "judge-schema.json");
     const resultFile = join(tmpDir, "result.json");
+    writeFileSync(schemaFile, JSON.stringify(JUDGE_SCHEMA));
     const cleanup = () => {
         try {
             rmSync(tmpDir, { recursive: true, force: true });
@@ -148,7 +166,7 @@ async function main() {
 
     try {
         const codexInput = `Assistant message:\n${lastAssistantMessage}\n\nAll user messages:\n${userMessages}\n`;
-        await runCodex({ input: codexInput, resultFile });
+        await runCodex({ input: codexInput, schemaFile, resultFile });
 
         let verdict = "incomplete";
         let reason = "No reason provided.";
@@ -164,8 +182,16 @@ async function main() {
 
         switch (verdict) {
             case "complete":
-            case "failed":
                 emitContinue();
+                break;
+            case "failed":
+                if (MUST_MODE) {
+                    emitBlock(
+                        `Reviewer judged the task as failed, but --must mode requires completion. Reason: ${reason} — Please continue working until the task is judged complete.`,
+                    );
+                } else {
+                    emitContinue();
+                }
                 break;
             case "suspended":
                 emitBlock(

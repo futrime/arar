@@ -15,6 +15,12 @@ In the project where you want **arar** enabled:
 npx github:futrime/arar
 ```
 
+Pass `--must` to install in **must** mode, where the reviewer's `failed` verdict is also treated as not-done — the coding agent must keep iterating until the reviewer judges the task `complete`:
+
+```bash
+npx github:futrime/arar --must
+```
+
 After installation, run Codex once interactively in that repository and approve trust, otherwise hooks will not load.
 
 ## Usage

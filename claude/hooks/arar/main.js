@@ -3,11 +3,27 @@
 import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const SCHEMA_PATH = join(HERE, "judge-schema.json");
+const MUST_MODE = process.argv.includes("--must");
+
+const JUDGE_SCHEMA = {
+    type: "object",
+    properties: {
+        verdict: {
+            type: "string",
+            enum: ["complete", "incomplete", "failed", "suspended", "waiting"],
+            description: "The current state of the task.",
+        },
+        reason: {
+            type: "string",
+            description:
+                "A brief explanation of why this verdict was chosen, citing specific evidence from the conversation.",
+        },
+    },
+    required: ["verdict", "reason"],
+    additionalProperties: false,
+};
 
 const AUDIT_PROMPT = `You are a strict task-completion auditor. You will receive the latest assistant message and all user messages from a conversation between a user and a coding agent. You are running in the agent's working directory and may use shell tools (\`cat\`, \`ls\`, \`git status\`, \`git diff\`, etc.) to read files and verify the agent's claims against the actual state of the repository.
 
@@ -90,7 +106,7 @@ function parseTranscript(path) {
 
 function runClaude({ prompt, resultFile }) {
     return new Promise((resolve, reject) => {
-        const schema = readFileSync(SCHEMA_PATH, "utf8");
+        const schema = JSON.stringify(JUDGE_SCHEMA);
         const child = spawn(
             "claude",
             [
@@ -195,8 +211,16 @@ async function main() {
 
         switch (verdict) {
             case "complete":
-            case "failed":
                 emitContinue();
+                break;
+            case "failed":
+                if (MUST_MODE) {
+                    emitBlock(
+                        `Reviewer judged the task as failed, but --must mode requires completion. Reason: ${reason} — Please continue working until the task is judged complete.`,
+                    );
+                } else {
+                    emitContinue();
+                }
                 break;
             case "suspended":
                 emitBlock(
